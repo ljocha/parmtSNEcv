@@ -1,7 +1,7 @@
 name = "parmtSNEcv"
 
 # Loading necessary libraries
-libnames = [('mdtraj', 'md'), ('numpy', 'np'), ('tensorflow', 'tf'), ('keras', 'krs'), ('argparse', 'arg'), ('datetime', 'dt'), ('onnx2torch', 'onnx2torch'), ('tf2onnx','tf2onnx') , ('torch','torch'), ('tempfile','tempfile'), ('os','os') ]
+libnames = [('mdtraj', 'md'), ('numpy', 'np'), ('argparse', 'arg'), ('datetime', 'dt'), ('torch','torch'), ('tempfile','tempfile'), ('os','os') ]
 
 for (name, short) in libnames:
   try:
@@ -12,6 +12,7 @@ for (name, short) in libnames:
   else:
     globals()[short] = lib
 
+import torch.nn as nn
 
 def parmtSNEcollectivevariable(infilename='', intopname='', embed_dim=2, perplexity=30,
                                boxx=0.0, boxy=0.0, boxz=0.0, nofit=0,
@@ -88,7 +89,20 @@ def parmtSNEcollectivevariable(infilename='', intopname='', embed_dim=2, perplex
     C = krs.backend.sum(P * C)
     return C
 
-  eps = krs.backend.variable(10e-15)
+  def torch_KL_loss(Y,P): # pred/input, true/target, reversed wrt. Keras
+    alpha = embed_dim - 1.
+    sum_Y = torch.sum(torch.square(Y),dim=1)
+    D = sum_Y + torch.reshape(sum_Y,(-1,1)) - 2. * torch.matmul(Y,torch.transpose(Y,0,1))
+    Q = torch.pow(1. + D / alpha, -(alpha + 1.) / 2.)
+    Q *= 1.- torch.eye(batch_size)
+    Q /= torch.sum(Q)
+    eps = torch.full(Q.size,10e-15)
+    Q = torch.maximum(Q,eps)
+    C = torch.log((P + eps) / (Q + eps))
+    return torch.sum(P * C)
+
+
+  # eps = krs.backend.variable(10e-15)
   try:
     print("Loading trajectory")
     refpdb = md.load_pdb(intopname)
@@ -149,8 +163,29 @@ def parmtSNEcollectivevariable(infilename='', intopname='', embed_dim=2, perplex
   if shuffle_interval==0:
     shuffle_interval = epochs + 1
 
+
+
+
   # Model building
   print("Building model")
+
+  tact = { 'relu' : nn.ReLU, 'tanh': nn.Tanh, 'sigmoid' : nn.Sigmoid } # XXX: not all, who cares
+  tmodel = nn.Sequential()
+  tmodel.add_module('linear1',nn.Linear(trajsize[1]*3,layer1))
+  tmodel.add_module('act1',tact[actfun1]())
+  lastdim = layer1
+  if layers > 1:
+    tmodel.add_module('linear2',nn.Linear(layer1,layer2))
+    tmodel.add_module('act2',tact[actfun2]())
+    lastdim = layer2
+    if layers > 2:
+      tmodel.add_module('linear3',nn.Linear(layer2,layer3))
+      tmodel.add_module('act3',tact[actfun3]())
+      lastdim = layer3
+
+  tmodel.add_module('embed',nn.Linear(lastdim,embed_dim))
+
+  """
   input_coord = krs.layers.Input(shape=(trajsize[1]*3,))
   encoded = krs.layers.Dense(layer1, activation=actfun1, use_bias=False)(input_coord)
   if layers == 3:
@@ -161,16 +196,24 @@ def parmtSNEcollectivevariable(infilename='', intopname='', embed_dim=2, perplex
   encoded = krs.layers.Dense(embed_dim, activation='linear', use_bias=True)(encoded)
   codecvs = krs.models.Model(input_coord, encoded)
   codecvs.compile(optimizer=optim, loss=KLdivergence)
+"""
 
   # Learning  
   print("Training model")
+  optim = torch.optim.Adam(tmodel.parameters())
   for epoch in range(epochs):
     if epoch % shuffle_interval == 0:
-      X = traj2[np.random.permutation(n)[:m]]
-      P = calculate_P(X, perplexity, tol=1e-5)
+      X = np.float32(traj2[np.random.permutation(n)[:m]])
+      P = np.float32(calculate_P(X, perplexity, tol=1e-5))
     loss = 0.0
     for i in range(0, m, batch_size):
-      loss += codecvs.train_on_batch(X[i:i+batch_size], P[i:i+batch_size])
+       y_pred = tmodel(torch.from_numpy(X[i:i+batch_size]))
+       loss = torch_KL_loss(y_pred,torch.from_numpy(P[i:i+batch_size]))
+       optim.zero_grad()
+       loss.backward()
+       optim.step()
+
+#       loss += codecvs.train_on_batch(X[i:i+batch_size], P[i:i+batch_size])
     print("Epoch: {}/{}, loss: {}".format(epoch+1, epochs, loss / batch_num))
 
   # Encoding and decoding the trajectory

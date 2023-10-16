@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-libnames = [('mdtraj', 'md'), ('numpy', 'np'), ('keras', 'krs'), ('argparse', 'arg'), ('datetime', 'dt'), ('sys', 'sys')]
+libnames = [('mdtraj', 'md'), ('numpy', 'np'), ('argparse', 'arg'), ('datetime', 'dt'), ('sys', 'sys')]
 
 for (name, short) in libnames:
   try:
