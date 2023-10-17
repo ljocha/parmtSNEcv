@@ -96,7 +96,7 @@ def parmtSNEcollectivevariable(infilename='', intopname='', embed_dim=2, perplex
     Q = torch.pow(1. + D / alpha, -(alpha + 1.) / 2.)
     Q *= 1.- torch.eye(batch_size)
     Q /= torch.sum(Q)
-    eps = torch.full(Q.size,10e-15)
+    eps = torch.full(Q.size(),10e-15)
     Q = torch.maximum(Q,eps)
     C = torch.log((P + eps) / (Q + eps))
     return torch.sum(P * C)
@@ -217,7 +217,7 @@ def parmtSNEcollectivevariable(infilename='', intopname='', embed_dim=2, perplex
     print("Epoch: {}/{}, loss: {}".format(epoch+1, epochs, loss / batch_num))
 
   # Encoding and decoding the trajectory
-  coded_cvs = codecvs.predict(traj2) #/maxbox)
+  coded_cvs = tmodel(torch.from_numpy(np.float32(traj2))) #/maxbox)
   # Generating low-dimensional output
   if len(ofilename) > 0:
     print("Writing tSNE collective variables for the training set into %s" % ofilename)
@@ -228,6 +228,8 @@ def parmtSNEcollectivevariable(infilename='', intopname='', embed_dim=2, perplex
         ofile.write(" %f" % coded_cvs[i,j])
       ofile.write("\n")
     ofile.close()
+
+  """ FIXME: only -plumed3 supported now
 
   # Saving the model
   if modelfile != '':
@@ -643,6 +645,7 @@ def parmtSNEcollectivevariable(infilename='', intopname='', embed_dim=2, perplex
       toprint = toprint[:-1] + " STRIDE=100 FILE=COLVAR\n"
       ofile.write(toprint)
     ofile.close()
+"""
 
   if plumedfile3:
     print("Writing Plumed with PYTORCH_MODEL_CV into %s" % plumedfile3)
