@@ -94,13 +94,15 @@ def parmtSNEcollectivevariable(infilename='', intopname='', embed_dim=2, perplex
     sum_Y = torch.sum(torch.square(Y),dim=1)
     D = sum_Y + torch.reshape(sum_Y,(-1,1)) - 2. * torch.matmul(Y,torch.transpose(Y,0,1))
     Q = torch.pow(1. + D / alpha, -(alpha + 1.) / 2.)
-    Q *= 1.- torch.eye(batch_size)
+    Q *= 1.- torch.eye(batch_size).to(device)
     Q /= torch.sum(Q)
-    eps = torch.full(Q.size(),10e-15)
+    eps = torch.full(Q.size(),10e-15).to(device)
     Q = torch.maximum(Q,eps)
     C = torch.log((P + eps) / (Q + eps))
     return torch.sum(P * C)
 
+  device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+  print('Torch device: ',device)
 
   # eps = krs.backend.variable(10e-15)
   try:
@@ -184,6 +186,7 @@ def parmtSNEcollectivevariable(infilename='', intopname='', embed_dim=2, perplex
       lastdim = layer3
 
   tmodel.add_module('embed',nn.Linear(lastdim,embed_dim))
+  tmodel.to(device)
 
   """
   input_coord = krs.layers.Input(shape=(trajsize[1]*3,))
@@ -205,19 +208,20 @@ def parmtSNEcollectivevariable(infilename='', intopname='', embed_dim=2, perplex
     if epoch % shuffle_interval == 0:
       X = np.float32(traj2[np.random.permutation(n)[:m]])
       P = np.float32(calculate_P(X, perplexity, tol=1e-5))
-    loss = 0.0
+    totloss = 0.0
     for i in range(0, m, batch_size):
-       y_pred = tmodel(torch.from_numpy(X[i:i+batch_size]))
-       loss = torch_KL_loss(y_pred,torch.from_numpy(P[i:i+batch_size]))
+       y_pred = tmodel(torch.from_numpy(X[i:i+batch_size]).to(device))
+       loss = torch_KL_loss(y_pred,torch.from_numpy(P[i:i+batch_size]).to(device))
        optim.zero_grad()
        loss.backward()
        optim.step()
 
 #       loss += codecvs.train_on_batch(X[i:i+batch_size], P[i:i+batch_size])
-    print("Epoch: {}/{}, loss: {}".format(epoch+1, epochs, loss / batch_num))
+       totloss += loss
+    print("Epoch: {}/{}, loss: {}".format(epoch+1, epochs, totloss / batch_num))
 
   # Encoding and decoding the trajectory
-  coded_cvs = tmodel(torch.from_numpy(np.float32(traj2))) #/maxbox)
+  coded_cvs = tmodel(torch.from_numpy(np.float32(traj2)).to(device)) #/maxbox)
   # Generating low-dimensional output
   if len(ofilename) > 0:
     print("Writing tSNE collective variables for the training set into %s" % ofilename)
@@ -665,17 +669,10 @@ def parmtSNEcollectivevariable(infilename='', intopname='', embed_dim=2, perplex
 
     ofile.write(f"ptm: PYTORCH_MODEL_CV FILE={model_name} ATOMS={','.join(map(str,atoms))}\n") 
 
-    with tempfile.NamedTemporaryFile() as onnx:
-        tf2onnx.convert.from_keras(codecvs,output_path=onnx.name)
-        torch_model = onnx2torch.convert(onnx.name)
-
     rec_maxbox = 1./maxbox
-    dummy_input = torch.randn([1,3*trajsize[1]])
-    # traced_script_module = torch.jit.trace(lambda x: torch_model(x * rec_maxbox), dummy_input)
-    def scaled_model(x):
-        return torch_model(x.reshape(-1))
+    dummy_input = torch.randn(3*trajsize[1])
 
-    traced_script_module = torch.jit.trace(scaled_model, dummy_input)
+    traced_script_module = torch.jit.trace(tmodel, dummy_input)
     traced_script_module.save(model_name) # XXX: jmeno
 
     toprint = "PRINT ARG="
