@@ -670,7 +670,7 @@ def parmtSNEcollectivevariable(infilename='', intopname='', embed_dim=2, perplex
     ofile.write(f"ptm: PYTORCH_MODEL_CV FILE={model_name} ATOMS={','.join(map(str,atoms))}\n") 
 
     rec_maxbox = 1./maxbox
-    dummy_input = torch.randn(3*trajsize[1])
+    dummy_input = torch.randn(3*trajsize[1]).to(device)
 
     traced_script_module = torch.jit.trace(tmodel, dummy_input)
     traced_script_module.save(model_name) # XXX: jmeno
