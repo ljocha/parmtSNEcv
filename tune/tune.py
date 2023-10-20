@@ -2,7 +2,10 @@
 
 import parmtSNEcv as p
 from ray import tune
+from ray import init as ray_init
 import numpy as np
+
+ray_init(num_gpus=1) # XXX
 
 args = p.parse_args()
 adict = p.process_args(args)
@@ -25,10 +28,6 @@ def tuned(config):
   d = np.linalg.norm(cvs[14]-cvs[815])
   return { 'pairdist' : d }
 
-def test(config):
-  return { 'score', 1 }
-
-
 space = {
   'layers': tune.choice([1,2,3]),
   'layer1': tune.choice([32,64,128,256]),
@@ -36,7 +35,12 @@ space = {
 }
 
 
-tuner = tune.Tuner(tuned, param_space=space)
-#tuner = tune.Tuner(test, param_space=space)
+tuner = tune.Tuner(tune.with_resources(
+    tuned,
+    resources={'cpu':1, 'gpu':.25 }
+  ),
+  param_space=space,
+  tune_config=tune.TuneConfig(num_samples=10)
+)
 results = tuner.fit()
 print(results.get_best_result(metric='pairdist',mode='max').config)
