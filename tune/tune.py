@@ -15,7 +15,13 @@ adict2 = { **adict }
 
 #XXX
 
-clusters = [ 0, 158, 553, 829 ]
+# test data
+# clusters = [ 0, 158, 553, 829 ]
+
+# trpcage
+clusters = [ 0, 1428, 1625, 1674, 1723 ]
+
+
 
 def tune_callback(model,inp,metric):
   cvs = model(inp).cpu().detach().numpy()
@@ -49,8 +55,11 @@ def tuned(config):
 space = {
   'lr': tune.loguniform(5e-4,1e-1),
   'layers': tune.choice([1,2,3]),
-  'layer1': tune.choice([32,64,128,256]),
+  'layer1': tune.choice([64,128,256,512]),
   'actfun1': tune.choice(['tanh','sigmoid']),
+  'shuffle_interval': tune.choice([10,20,50]),
+  'batch_size' : tune.choice([256,512,1024,2048]),
+  'perplexity' : tune.choice([15,30,60]),
 }
 
 hbbohb = tune.schedulers.HyperBandForBOHB(
@@ -73,17 +82,17 @@ tunebohb = tune.search.bohb.TuneBOHB(
 
 tuner = tune.Tuner(tune.with_resources(
     tuned,
-    resources={'cpu':1, 'gpu':.25 }
+    resources={'cpu':1, 'gpu':.20 }
   ),
   param_space=space,
   tune_config=tune.TuneConfig(
-    num_samples=10,
+    num_samples=100,
     scheduler=asha,
 #    scheduler=hbbohb, search_alg=tunebohb
   ),
   run_config=train.RunConfig(
     storage_path='/work/raytune',
-    stop=tune.stopper.TrialPlateauStopper('loss',grace_period=20,std=1e-3,num_results=10)
+    stop=tune.stopper.TrialPlateauStopper('loss',grace_period=20,std=1e-3,num_results=6)
   ),
 )
 results = tuner.fit()
