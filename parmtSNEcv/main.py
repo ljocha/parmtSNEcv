@@ -13,7 +13,8 @@ def parmtSNEcollectivevariable(infilename='', intopname='', embed_dim=2, perplex
                                layers=2, layer1=256, layer2=256, layer3=256,
                                actfun1='relu', actfun2='relu', actfun3='relu',
                                optim='adam', epochs=100, shuffle_interval=0, batch_size=0,
-                               ofilename='', modelfile='', plumedfile=None, plumedfile2=None, plumedfile3=None, fullcommand=''):
+                               ofilename='', modelfile='', plumedfile=None, plumedfile2=None, plumedfile3=None, fullcommand='',
+                               report_callback=None,lr=1e-3):
 
   def Hbeta(D, beta):
     P = np.exp(-D*beta)
@@ -197,7 +198,8 @@ def parmtSNEcollectivevariable(infilename='', intopname='', embed_dim=2, perplex
 
   # Learning  
   print("Training model")
-  optim = torch.optim.Adam(tmodel.parameters())
+  optim = torch.optim.Adam(tmodel.parameters(),lr=lr)
+  traj2_dev = torch.from_numpy(np.float32(traj2)).to(device)
   for epoch in range(epochs):
     if epoch % shuffle_interval == 0:
       X = np.float32(traj2[np.random.permutation(n)[:m]])
@@ -211,11 +213,13 @@ def parmtSNEcollectivevariable(infilename='', intopname='', embed_dim=2, perplex
        optim.step()
 
 #       loss += codecvs.train_on_batch(X[i:i+batch_size], P[i:i+batch_size])
-       totloss += loss
+       totloss += loss.cpu().detach().numpy()
     print("Epoch: {}/{}, loss: {}".format(epoch+1, epochs, totloss / batch_num))
+    if report_callback:
+      report_callback(tmodel,traj2_dev,{'loss':totloss/batch_num})
 
   # Encoding and decoding the trajectory
-  coded_cvs = tmodel(torch.from_numpy(np.float32(traj2)).to(device)) #/maxbox)
+  coded_cvs = tmodel(traj2_dev) #/maxbox)
   # Generating low-dimensional output
   if len(ofilename) > 0:
     print("Writing tSNE collective variables for the training set into %s" % ofilename)
