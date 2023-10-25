@@ -16,7 +16,7 @@ elif [ $(basename $0) = devel-run-amd.sh ]; then
 	gpuflags="--device=/dev/kfd --device=/dev/dri --group-add=video --group-add=render"
 fi
 
-docker run \
+docker run --rm \
 	--ipc=host --ulimit memlock=-1 --ulimit stack=67108864 \
 	-u $(id -u) -ti -v $PWD:/work -w /work \
 	$gpuflags $image $cmd "$@"
