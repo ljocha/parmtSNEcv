@@ -9,7 +9,7 @@ import os
 import torch.nn as nn
 
 def parmtSNEcollectivevariable(infilename='', intopname='', embed_dim=2, perplexity=30,
-                               boxx=0.0, boxy=0.0, boxz=0.0, nofit=0,
+                               boxx=0.0, boxy=0.0, boxz=0.0, nofit=0,lagtime=0,maxpcs=50,
                                layers=2, layer1=256, layer2=256, layer3=256,
                                actfun1='relu', actfun2='relu', actfun3='relu',
                                optim='adam', epochs=100, shuffle_interval=0, batch_size=0,
@@ -149,6 +149,27 @@ def parmtSNEcollectivevariable(infilename='', intopname='', embed_dim=2, perplex
   maxbox = max([boxx, boxy, boxz])
   traj2 = traj2/maxbox
 
+  if lagtime > 0:
+    meanc = np.mean(traj2, axis=0)
+    traj2c = traj2-meanc
+    cov1 = np.cov(np.transpose(traj2c))
+    eva, eve = np.linalg.eig(cov1)
+    order=np.argsort(eva)[::-1]
+    eve = eve[:,order]
+    eva = eva[order]
+    projs = traj2c.dot(eve)
+    projs = projs/np.sqrt(eva)
+    C1 = np.transpose(projs[:-lagtime,]).dot(projs[lagtime:,])/(trajsize[0]-lagtime-1)
+    C1 = (C1+np.transpose(C1))/2.0
+    eva2, eve2 = np.linalg.eig(C1)
+    order= np.argsort(eva2)[::-1]
+    eve2 = eve2[:,order]
+    eva2 = eva2[order]
+    projs = projs.dot(eve2[:,:maxpcs])
+    traj3 = projs*np.sqrt(np.real(eva2[:maxpcs]))
+  else:
+    traj3 = traj2
+  
   n = trajsize[0]
   if batch_size > 0:
     batch_num = int(n // batch_size)
@@ -202,8 +223,10 @@ def parmtSNEcollectivevariable(infilename='', intopname='', embed_dim=2, perplex
   traj2_dev = torch.from_numpy(np.float32(traj2)).to(device)
   for epoch in range(epochs):
     if epoch % shuffle_interval == 0:
-      X = np.float32(traj2[np.random.permutation(n)[:m]])
-      P = np.float32(calculate_P(X, perplexity, tol=1e-5))
+      nr = np.random.permutation(n)
+      X = np.float32(traj2[nr[:m]])
+      Xl = np.float32(traj3[nr[:m]])
+      P = np.float32(calculate_P(Xl, perplexity, tol=1e-5))
     totloss = 0.0
     for i in range(0, m, batch_size):
        y_pred = tmodel(torch.from_numpy(X[i:i+batch_size]).to(device))

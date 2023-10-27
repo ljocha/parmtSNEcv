@@ -59,6 +59,7 @@ space = {
   'actfun1': tune.choice(['tanh','sigmoid']),
 #  'shuffle_interval': tune.choice([10,20,50]),
   'batch_size' : tune.choice([256,512,1024,2048]),
+  'lagtime' : tune.choice([1,2,3]),
 #  'perplexity' : tune.choice([15,30,60]),
 }
 

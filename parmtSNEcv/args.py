@@ -10,6 +10,12 @@ def parse_args():
   
   parser.add_argument('-p', dest='intop', default='top.pdb',
   help='Input topology in pdb, WARNING: the structure must be 1. centered in the PBC box and 2. must contain only atoms to be analysed!')
+
+  parser.add_argument('-lag', dest='lagtime', default=1, type=int,
+  help='Time lag in number of frames (default 1)')
+
+  parser.add_argument('-maxpcs', dest='maxpcs', default=50, type=int,
+  help='Number of TICA coordinates to be passed to t-SNE (default 50)')
   
   parser.add_argument('-dim', dest='embed_dim', default=2, type=int,
   help='Number of output dimensions (default 2)')
@@ -25,7 +31,7 @@ def parse_args():
   
   parser.add_argument('-boxz', dest='boxz', default=0.0, type=float,
   help='Size of z coordinate of PBC box (from 0 to set value in nm)')
-  
+
   parser.add_argument('-nofit', dest='nofit', default='False',
   help='Disable fitting, the trajectory must be properly fited (default False)')
   
@@ -96,6 +102,8 @@ def process_args(args):
   a.boxx = args.boxx
   a.boxy = args.boxy
   a.boxz = args.boxz
+  a.lagtime = args.lagtime
+  a.maxpcs = args.maxpcs
   a.embed_dim = args.embed_dim
   a.perplexity = args.perplex
   a.nofit = args.nofit
