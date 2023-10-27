@@ -62,6 +62,9 @@ def parse_args():
   parser.add_argument('-batch', dest='batch_size', default=0, type=int,
   help='Batch size (0 = no batches, default = 0)')
   
+  parser.add_argument('-lr', dest='lr', default=0.001, type=float,
+  help='Learning rate (default 0.001)')
+  
   parser.add_argument('-o', dest='ofile', default='',
   help='Output file with values of t-SNE embeddings (txt, default = no output)')
   
@@ -143,6 +146,7 @@ def process_args(args):
   a.epochs = args.epochs
   a.shuffle_interval = args.shuffle_interval
   a.batch_size = args.batch_size
+  a.lr = args.lr
   if args.ofile[-4:] == '.txt':
     a.ofilename = args.ofile
   elif len(args.ofile)>0:
