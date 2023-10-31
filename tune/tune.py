@@ -4,6 +4,7 @@ import parmtSNEcv as p
 from ray import tune,train
 from ray import init as ray_init
 import numpy as np
+import json
 
 from ray.tune.search import bohb
 
@@ -42,10 +43,14 @@ def tuned(config):
       params[k] = config[k]
 
 # XXX:
-  if 'actfun2' not in config: params['actfun2'] = params['actfun1']
-  if 'actfun3' not in config: params['actfun3'] = params['actfun1']
-  if 'layer2' not in config: params['layer2'] = params['layer1']
-  if 'layer3' not in config: params['layer3'] = params['layer1']
+  if 'actfun1' not in config: params['actfun1'] = config['actfun']
+  if 'actfun2' not in config: params['actfun2'] = config['actfun']
+  if 'actfun3' not in config: params['actfun3'] = config['actfun']
+  if 'layer1' not in config: params['layer1'] = config['neurons']
+  if 'layer2' not in config: params['layer2'] = config['neurons']
+  if 'layer3' not in config: params['layer3'] = config['neurons']
+  params.pop('neurons')
+  params.pop('actfun')
 
   cvs = p.parmtSNEcollectivevariable(**params,report_callback=tune_callback).to('cpu').detach().numpy()
 #  d = np.linalg.norm(cvs[14]-cvs[815])
@@ -53,10 +58,10 @@ def tuned(config):
   raise RuntimeError("should never reach here")
 
 space = {
-  'lr': tune.loguniform(5e-4,1e-1),
+  'lr': tune.loguniform(2e-4,1e-2),
   'layers': tune.choice([1,2,3]),
-  'layer1': tune.choice([64,128,256,512]),
-  'actfun1': tune.choice(['tanh','sigmoid']),
+  'neurons': tune.choice([64,128,256,512]),
+  'actfun': tune.choice(['tanh','sigmoid']),
 #  'shuffle_interval': tune.choice([10,20,50]),
   'batch_size' : tune.choice([256,512,1024,2048]),
   'lagtime' : tune.choice([1,2,3]),
@@ -102,3 +107,6 @@ tuner = tune.Tuner(tune.with_resources(
 )
 results = tuner.fit()
 print(results.get_best_result(metric='pairdist',mode='max').config)
+
+with open('result.json','w') as j:
+	json.dump(results,j)
