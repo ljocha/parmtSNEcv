@@ -135,8 +135,8 @@ spec:
           medium: Memory
       containers:
         - name: ray-head
-#          image: rayproject/ray:2.3.0
-          image: ljocha/gromacs:2023-2-ray
+#          image: 
+          image: cerit.io/ljocha/ptltsne:ray
           imagePullPolicy: Always
           command: [ "/bin/bash", "-c", "--" ]
           # if there is no password for Redis, set --redis-password=''
@@ -217,7 +217,7 @@ spec:
       containers:
       - name: ray-worker
         # image: rayproject/ray:2.3.0
-        image: ljocha/gromacs:2023-2-ray
+        image: cerit.io/ljocha/ptltsne:ray
         imagePullPolicy: Always
         command: ["/bin/bash", "-c", "--"]
         args:
@@ -241,11 +241,11 @@ spec:
             value: "1"
         resources:
           limits:
-            cpu: "8"
+            cpu: "5"
             memory: "16G"
             nvidia.com/mig-1g.10gb: 1
           requests:
-            cpu: "8"
+            cpu: "5"
             memory: "16G"
             nvidia.com/mig-1g.10gb: 1
         securityContext:

@@ -1,10 +1,10 @@
-FROM rayproject/ray-ml:2.5.0-gpu
+FROM cerit.io/ljocha/ray-ml:2.7.1-gpu
 
 USER root
 
 RUN pip3 install mdtraj
 
-COPY dist/parmtSNEcv-0.1.tar.gz /tmp/
+COPY parmtSNEcv-0.1.tar.gz /tmp/
 RUN pip3 install /tmp/parmtSNEcv-0.1.tar.gz
 
 
