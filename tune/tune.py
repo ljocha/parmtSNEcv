@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 
 import parmtSNEcv as p
-from ray import tune,train
+from ray import tune,train,data
 from ray import init as ray_init
 import numpy as np
-import json
 
 from ray.tune.search import bohb
 
-ray_init(num_gpus=1) # XXX
+ray_init()
 
 args = p.parse_args()
 adict = p.process_args(args)
@@ -37,7 +36,16 @@ def tune_callback(model,inp,metric):
   train.report({**metric, 'pairdist' : d })
 
 def tuned(config):
+
   params = adict2.copy()
+  files = [ params['infilename'], params['intopname'] ]
+
+  for f in files:
+    ds = data.read_binary_files(f)
+    r = ds.take(1)[0]
+    with open(f,"wb") as w:
+      w.write(r['bytes'])
+
   for k in params:
     if k in config:
       params[k] = config[k]
@@ -49,8 +57,8 @@ def tuned(config):
   if 'layer1' not in config: params['layer1'] = config['neurons']
   if 'layer2' not in config: params['layer2'] = config['neurons']
   if 'layer3' not in config: params['layer3'] = config['neurons']
-  params.pop('neurons')
-  params.pop('actfun')
+#  params.pop('neurons')
+#  params.pop('actfun')
 
   cvs = p.parmtSNEcollectivevariable(**params,report_callback=tune_callback).to('cpu').detach().numpy()
 #  d = np.linalg.norm(cvs[14]-cvs[815])
@@ -62,10 +70,10 @@ space = {
   'layers': tune.choice([1,2,3]),
   'neurons': tune.choice([64,128,256,512]),
   'actfun': tune.choice(['tanh','sigmoid']),
-#  'shuffle_interval': tune.choice([10,20,50]),
+  'shuffle_interval': tune.choice([10,20,50]),
   'batch_size' : tune.choice([256,512,1024,2048]),
   'lagtime' : tune.choice([1,2,3]),
-#  'perplexity' : tune.choice([15,30,60]),
+  'perplexity' : tune.choice([15,30,60]),
 }
 
 hbbohb = tune.schedulers.HyperBandForBOHB(
@@ -92,12 +100,12 @@ tuner = tune.Tuner(tune.with_resources(
   ),
   param_space=space,
   tune_config=tune.TuneConfig(
-    num_samples=1000,
+    num_samples=2000,
     scheduler=asha,
 #    scheduler=hbbohb, search_alg=tunebohb
   ),
   run_config=train.RunConfig(
-    storage_path='/work/raytune',
+#    storage_path='/work/raytune',
     stop=tune.stopper.TrialPlateauStopper(
       'loss',grace_period=20,
       std=1e-3,num_results=6,
@@ -105,8 +113,8 @@ tuner = tune.Tuner(tune.with_resources(
     )
   ),
 )
-results = tuner.fit()
-print(results.get_best_result(metric='pairdist',mode='max').config)
+results = tuner.fit().get_dataframe()
+# print(results.get_best_result(metric='pairdist',mode='max').config)
 
 with open('result.json','w') as j:
-	json.dump(results,j)
+	results.to_json(j)
